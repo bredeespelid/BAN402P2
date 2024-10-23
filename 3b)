@@ -1,61 +1,100 @@
-reset;
+# Sets
+set TEAMS;
+set VENUES;
+set DATES ordered;
+set GROUPS;
+set MATCHES;
+set SEEDED_MATCHES;
 
-model EURO2024.mod;
-data EURO2024.dat;
-option solver gurobi;
-option gurobi_options 'outlev=1';
-option show_stats 1;
-solve;
-
-display(CombinedObjective);
-
-# Print match schedule
-printf "Match schedule:\n";
-for {m in MATCHES} {
-    for {v in VENUES} {
-        if x[m,v].val > 0.5 then
-            printf "Match %d: %s vs %s on day %d in %s\n", m, team1[m], team2[m], match_date[m], v;
-    }
-}
-
-# Print total travel distance for each team
-printf "\nTotal distance travelled by each team:\n";
-for {t in TEAMS} {
-    printf "%s travelled: %.2f km\n", t, travel[t];
-}
+# Parameters
+param distance{VENUES, VENUES};  # Distance between venues
+param group{TEAMS};  # Group of each team
+param match_date{MATCHES};  # Date of each match
+param matches_per_venue{VENUES};  # Maximum number of matches per venue
+param team1{MATCHES} symbolic;  # First team in each match
+param team2{MATCHES} symbolic;  # Second team in each match
+param seeded_match_venue{SEEDED_MATCHES} symbolic;  # Venue for seeded matches
+param seeded_match_date{SEEDED_MATCHES};  # Date for seeded matches
+param venue_schedule{VENUES, DATES};
+param germany_matches{MATCHES, VENUES};
+var MaxTravel;  # Maximum travel distance among all teams
+var MinTravel;  # Minimum travel distance among all teams
 
 
-printf "\nMaximum travel distance: %.2f km\n", MaxTravel;
-printf "Minimum travel distance: %.2f km\n", MinTravel;
-printf "Difference between maximum and minimum travel distances: %.2f km\n", TravelDifference;
+# Variables
+var x{MATCHES, VENUES} binary;  # If match m is played in venue v
+var y{TEAMS, MATCHES, MATCHES, VENUES, VENUES} binary;  # Binary variable to link two matches for travel distance
+var travel{TEAMS} >= 0;  # Total travel distance for each team
 
-reset;
+param alpha := 0.5;  # Weight for total distance
+param beta := 0.5;   # Weight for fairness (can adjust these weights as needed)
+minimize CombinedObjective:
+    alpha * sum{t in TEAMS} travel[t] + beta * (MaxTravel - MinTravel);
 
-model EURO2024.mod;
-data EURO2024.dat;
-option solver gurobi;
-option gurobi_options 'outlev=1';
-option show_stats 1;
-solve;
+# Each match is assigned to exactly one venue
+subject to MatchAssignment {m in MATCHES}:
+    sum{v in VENUES} x[m,v] = 1;
 
-display(CombinedObjective);
+# All matches must be assigned
+subject to AllMatchesAssigned:
+    sum{m in MATCHES, v in VENUES} x[m,v] = card(MATCHES);
 
-# Print match schedule
-printf "Match schedule:\n";
-for {m in MATCHES} {
-    for {v in VENUES} {
-        if x[m,v].val > 0.5 then
-            printf "Match %d: %s vs %s on day %d in %s\n", m, team1[m], team2[m], match_date[m], v;
-    }
-}
+# Each venue can host at most the number of matches assigned to it in the real schedule
+subject to MatchesPerVenue {v in VENUES}:
+    sum{m in MATCHES} x[m,v] <= matches_per_venue[v];
 
-# Print total travel distance for each team
-printf "\nTotal distance travelled by each team:\n";
-for {t in TEAMS} {
-    printf "%s travelled: %.2f km\n", t, travel[t];
-}
+# Ensure at least two days of rest between matches at the same venue
+subject to VenueMaintenance {v in VENUES, d in DATES: ord(d) < card(DATES)-1}:
+    sum{m in MATCHES: match_date[m] = d or match_date[m] = next(d)} x[m,v] <= 1;
 
+# Ensure group games are distributed across at least four venues
+subject to GroupGamesDistribution {g in GROUPS}:
+    sum{v in VENUES} (if sum{m in MATCHES: group[team1[m]] = g or group[team2[m]] = g} x[m,v] > 0 then 1 else 0) >= 4;
 
-printf "\nMaximum travel distance: %.2f km\n", MaxTravel;
-printf "Minimum travel distance: %.2f km\n", MinTravel;
-printf "Difference between maximum and minimum travel distances: %.2f km\n", TravelDifference;
+# No venue can host more than two matches for the same group
+subject to MaxGroupGamesPerVenue {v in VENUES, g in GROUPS}:
+    sum{m in MATCHES: group[team1[m]] = g or group[team2[m]] = g} x[m,v] <= 2;
+
+# Ensure all venues host at least one match by 18 June
+subject to EarlyGameAllVenues:
+    sum{v in VENUES} (if sum{m in MATCHES: match_date[m] <= 18} x[m,v] > 0 then 1 else 0) >= card(VENUES) - 2;
+
+# Ensure all venues host at least one match on or after 24 June
+subject to LateGameAllVenues:
+    sum{v in VENUES} (if sum{m in MATCHES: match_date[m] >= 24} x[m,v] > 0 then 1 else 0) >= card(VENUES) - 2;
+
+subject to VenueSchedule {v in VENUES, d in DATES}:
+    sum{m in MATCHES: match_date[m] = d} x[m,v] >= venue_schedule[v,d] - 1;
+
+subject to GermanyGames {m in MATCHES, v in VENUES: germany_matches[m,v] = 1}:
+    x[m,v] = 1;
+
+# Binary linking travel between consecutive matches (linearization constraints)
+subject to LinkY1 {t in TEAMS, m1 in MATCHES, m2 in MATCHES, v1 in VENUES, v2 in VENUES: 
+    (team1[m1] = t or team2[m1] = t) and (team1[m2] = t or team2[m2] = t) and match_date[m1] < match_date[m2]}:
+    y[t,m1,m2,v1,v2] <= x[m1,v1];
+
+subject to LinkY2 {t in TEAMS, m1 in MATCHES, m2 in MATCHES, v1 in VENUES, v2 in VENUES: 
+    (team1[m1] = t or team2[m1] = t) and (team1[m2] = t or team2[m2] = t) and match_date[m1] < match_date[m2]}:
+    y[t,m1,m2,v1,v2] <= x[m2,v2];
+
+subject to LinkY3 {t in TEAMS, m1 in MATCHES, m2 in MATCHES, v1 in VENUES, v2 in VENUES: 
+    (team1[m1] = t or team2[m1] = t) and (team1[m2] = t or team2[m2] = t) and match_date[m1] < match_date[m2]}:
+    y[t,m1,m2,v1,v2] >= x[m1,v1] + x[m2,v2] - 1;
+
+subject to TravelDistance {t in TEAMS}:
+    travel[t] = sum{m1 in MATCHES, m2 in MATCHES, v1 in VENUES, v2 in VENUES:
+        (team1[m1] = t or team2[m1] = t) and 
+        (team1[m2] = t or team2[m2] = t) and 
+        match_date[m1] < match_date[m2] and 
+        forall {m3 in MATCHES: match_date[m1] < match_date[m3] < match_date[m2]}
+            ((team1[m3] != t) and (team2[m3] != t))}
+    distance[v1,v2] * y[t,m1,m2,v1,v2];
+    
+# Constraints for max and min travel distances
+subject to MaxTravelConstraint {t in TEAMS}:
+    MaxTravel >= travel[t];
+
+subject to MinTravelConstraint {t in TEAMS}:
+    MinTravel <= travel[t];
+    
