@@ -1,0 +1,196 @@
+# Sets
+set TEAMS;
+set VENUES;
+set DATES ordered;
+set GROUPS;
+set MATCHES;
+set SEEDED_MATCHES;
+
+# Parameters
+param distance{VENUES, VENUES};  # Distance between venues
+param group{TEAMS};  # Group of each team
+param match_date{MATCHES};  # Date of each match
+param matches_per_venue{VENUES};  # Maximum number of matches per venue
+param team1{MATCHES} symbolic;  # First team in each match
+param team2{MATCHES} symbolic;  # Second team in each match
+param seeded_match_venue{SEEDED_MATCHES} symbolic;  # Venue for seeded matches
+param seeded_match_date{SEEDED_MATCHES};  # Date for seeded matches
+
+# Variables
+var x{MATCHES, VENUES} binary;  # If match m is played in venue v
+var y{TEAMS, MATCHES, MATCHES, VENUES, VENUES} binary;  # Binary variable to link two matches for travel distance
+var travel{TEAMS} >= 0;  # Total travel distance for each team
+
+# Objective: Minimize total distance travelled by teams
+minimize TotalDistance:
+    sum{t in TEAMS} travel[t];
+
+# Constraints
+
+# Each match is assigned to exactly one venue
+subject to MatchAssignment {m in MATCHES}:
+    sum{v in VENUES} x[m,v] = 1;
+
+# All matches must be assigned
+subject to AllMatchesAssigned:
+    sum{m in MATCHES, v in VENUES} x[m,v] = card(MATCHES);
+
+# Each venue can host at most the number of matches assigned to it in the real schedule
+subject to MatchesPerVenue {v in VENUES}:
+    sum{m in MATCHES} x[m,v] <= matches_per_venue[v];
+
+# Ensure at least two days of rest between matches at the same venue
+subject to VenueMaintenance {v in VENUES, d in DATES: ord(d) < card(DATES)-1}:
+    sum{m in MATCHES: match_date[m] = d or match_date[m] = next(d)} x[m,v] <= 1;
+
+# Ensure group games are distributed across at least four venues
+subject to GroupGamesDistribution {g in GROUPS}:
+    sum{v in VENUES} (if sum{m in MATCHES: group[team1[m]] = g or group[team2[m]] = g} x[m,v] > 0 then 1 else 0) >= 4;
+
+# No venue can host more than two matches for the same group
+subject to MaxGroupGamesPerVenue {v in VENUES, g in GROUPS}:
+    sum{m in MATCHES: group[team1[m]] = g or group[team2[m]] = g} x[m,v] <= 2;
+
+# Ensure all venues host at least one match by 18 June
+subject to EarlyGameAllVenues:
+    sum{v in VENUES} (if sum{m in MATCHES: match_date[m] <= 18} x[m,v] > 0 then 1 else 0) >= card(VENUES) - 2;
+
+# Ensure all venues host at least one match on or after 24 June
+subject to LateGameAllVenues:
+    sum{v in VENUES} (if sum{m in MATCHES: match_date[m] >= 24} x[m,v] > 0 then 1 else 0) >= card(VENUES) - 2;
+
+# Ensure seeded matches are held in predefined venues
+subject to SeededMatches {m in SEEDED_MATCHES}:
+    x[m, seeded_match_venue[m]] = 1;
+
+# Binary linking travel between consecutive matches (linearization constraints)
+subject to LinkY1 {t in TEAMS, m1 in MATCHES, m2 in MATCHES, v1 in VENUES, v2 in VENUES: 
+    (team1[m1] = t or team2[m1] = t) and (team1[m2] = t or team2[m2] = t) and match_date[m1] < match_date[m2]}:
+    y[t,m1,m2,v1,v2] <= x[m1,v1];
+
+subject to LinkY2 {t in TEAMS, m1 in MATCHES, m2 in MATCHES, v1 in VENUES, v2 in VENUES: 
+    (team1[m1] = t or team2[m1] = t) and (team1[m2] = t or team2[m2] = t) and match_date[m1] < match_date[m2]}:
+    y[t,m1,m2,v1,v2] <= x[m2,v2];
+
+subject to LinkY3 {t in TEAMS, m1 in MATCHES, m2 in MATCHES, v1 in VENUES, v2 in VENUES: 
+    (team1[m1] = t or team2[m1] = t) and (team1[m2] = t or team2[m2] = t) and match_date[m1] < match_date[m2]}:
+    y[t,m1,m2,v1,v2] >= x[m1,v1] + x[m2,v2] - 1;
+
+# Travel distance calculation
+subject to TravelCalculation {t in TEAMS}:
+    travel[t] = sum{m1 in MATCHES, m2 in MATCHES, v1 in VENUES, v2 in VENUES:
+        (team1[m1] = t or team2[m1] = t) and (team1[m2] = t or team2[m2] = t) and match_date[m1] < match_date[m2]}
+        distance[v1,v2] * y[t,m1,m2,v1,v2];
+
+
+
+set TEAMS := GER SCO HUN SUI ESP CRO ITA ALB SVN DEN SRB ENG POL NED AUT FRA BEL SVK ROU UKR TUR GEO POR CZE;
+
+set VENUES := BER MUN DOR STU GEL HAM DUS FRK COL LEI;
+
+set DATES := 14 15 16 17 18 19 20 21 22 23 24 25 26;
+
+set GROUPS := 1 2 3 4 5 6;
+
+set MATCHES := 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36;
+
+set SEEDED_MATCHES := 1 2 5 6 8 11 ; 
+
+param distance :   BER   MUN   DOR   STU   GEL   HAM   DUS   FRK   COL   LEI :=
+BER                  0   571   501   628   510   290   564   545   571   180
+MUN                570     0   632   220   664   790   654   421   613   412
+DOR                491   638     0   452    34   353    68   271    99   420
+STU                628   222   449     0   454   676   421   202   380   470
+GEL                510   669    41   455     0   348    59   273   101   451
+HAM                290   790   351   676   347     0   401   506   425   399
+DUS                565   653    73   421    60   403     0   239    61   481
+FRK                549   420   267   202   272   508   238     0   198   391
+COL                570   610    96   378   102   425    60   196     0   492
+LEI                179   414   427   471   490   399   544   389   502     0;
+
+param group :=
+GER 1  SCO 1  HUN 1  SUI 1
+ESP 2  CRO 2  ITA 2  ALB 2
+SVN 3  DEN 3  SRB 3  ENG 3
+POL 4  NED 4  AUT 4  FRA 4
+BEL 5  SVK 5  ROU 5  UKR 5
+TUR 6  GEO 6  POR 6  CZE 6;
+
+param seeded_match_venue :=
+1 MUN  
+2 BER  
+5 GEL  
+6 DUS  
+8 FRK  
+11 LEI;
+
+param seeded_match_date :=
+1 14
+2 15
+5 16
+6 17
+8 17
+11 18;
+
+
+param match_date :=
+1  14   2  15   3  15   4  15   5  16   6  16   7  16   8  17   9  17  10  17
+11 18  12  18  13  18  14  19  15  19  16  19  17  20  18  20  19  20  20  21
+21 21  22  21  23  22  24  22  25  22  26  23  27  23  28  23  29  24  30  24
+31 24  32  25  33  25  34  25  35  26  36  26;
+
+param matches_per_venue :=
+BER 3  LEI 3  HAM 4  DOR 4  GEL 3  DUS 3  COL 4  FRK 4  STU 4  MUN 4;
+
+
+
+param: MATCHES: team1 team2 :=
+1  GER SCO    2  ESP CRO    3  ITA ALB    4  HUN SUI
+5  SRB ENG    6  POL NED    7  SVN DEN    8  BEL SVK
+9  ROU UKR   10  AUT FRA   11  POR CZE   12  TUR GEO
+13 CRO ALB   14 GER HUN   15 NED FRA   16 SVK UKR
+17 ESP ITA   18 DEN ENG   19 SCO SUI   20 GEO CZE
+21 POL AUT   22 SVN SRB   23 BEL ROU   24 NED AUT
+25 CRO ITA   26 SCO HUN   27 SUI GER   28 TUR POR
+29 CZE TUR   30 ALB ESP   31 FRA POL   32 ENG SVN
+33 UKR BEL   34 SVK ROU   35 DEN SRB   36 GEO POR;
+
+
+reset;
+model EURO2024_2.mod;
+data EURO2024_2.dat;
+option solver gurobi;
+
+# Set time limit to 30 seconds
+option gurobi_options 'timelimit=30';
+
+solve;
+
+# Print match schedule
+printf "Match schedule:\n";
+for {m in MATCHES} {
+    for {v in VENUES} {
+        if x[m,v].val > 0.5 then
+            printf "Match %d: %s vs %s on day %d in %s\n", m, team1[m], team2[m], match_date[m], v;
+    }
+}
+
+printf "Travel variables for GER:\n";
+for {m1 in MATCHES, m2 in MATCHES, v1 in VENUES, v2 in VENUES: 
+    (team1[m1] = "GER" or team2[m1] = "GER") and 
+    (team1[m2] = "GER" or team2[m2] = "GER") and 
+    match_date[m1] < match_date[m2]} {
+    if y["GER",m1,m2,v1,v2] > 0.5 then
+        printf "GER travels from %s to %s between match %d and match %d\n", v1, v2, m1, m2;
+}
+
+
+# Print total travel distance for each team
+printf "\nTotal distance travelled by each team:\n";
+for {t in TEAMS} {
+    printf "%s travelled: %f km\n", t, travel[t];
+}
+
+# Print total distance travelled by all teams combined
+printf "\nTotal distance travelled by all teams combined: %f km\n", 
+    sum{t in TEAMS} travel[t];
