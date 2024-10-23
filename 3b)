@@ -1,0 +1,61 @@
+reset;
+
+model EURO2024.mod;
+data EURO2024.dat;
+option solver gurobi;
+option gurobi_options 'outlev=1';
+option show_stats 1;
+solve;
+
+display(CombinedObjective);
+
+# Print match schedule
+printf "Match schedule:\n";
+for {m in MATCHES} {
+    for {v in VENUES} {
+        if x[m,v].val > 0.5 then
+            printf "Match %d: %s vs %s on day %d in %s\n", m, team1[m], team2[m], match_date[m], v;
+    }
+}
+
+# Print total travel distance for each team
+printf "\nTotal distance travelled by each team:\n";
+for {t in TEAMS} {
+    printf "%s travelled: %.2f km\n", t, travel[t];
+}
+
+
+printf "\nMaximum travel distance: %.2f km\n", MaxTravel;
+printf "Minimum travel distance: %.2f km\n", MinTravel;
+printf "Difference between maximum and minimum travel distances: %.2f km\n", TravelDifference;
+
+reset;
+
+model EURO2024.mod;
+data EURO2024.dat;
+option solver gurobi;
+option gurobi_options 'outlev=1';
+option show_stats 1;
+solve;
+
+display(CombinedObjective);
+
+# Print match schedule
+printf "Match schedule:\n";
+for {m in MATCHES} {
+    for {v in VENUES} {
+        if x[m,v].val > 0.5 then
+            printf "Match %d: %s vs %s on day %d in %s\n", m, team1[m], team2[m], match_date[m], v;
+    }
+}
+
+# Print total travel distance for each team
+printf "\nTotal distance travelled by each team:\n";
+for {t in TEAMS} {
+    printf "%s travelled: %.2f km\n", t, travel[t];
+}
+
+
+printf "\nMaximum travel distance: %.2f km\n", MaxTravel;
+printf "Minimum travel distance: %.2f km\n", MinTravel;
+printf "Difference between maximum and minimum travel distances: %.2f km\n", TravelDifference;
