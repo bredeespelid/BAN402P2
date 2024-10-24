@@ -4,7 +4,6 @@ set VENUES;
 set DATES ordered;
 set GROUPS;
 set MATCHES;
-set SEEDED_MATCHES;
 
 # Parameters
 param distance{VENUES, VENUES};  # Distance between venues
@@ -13,23 +12,51 @@ param match_date{MATCHES};  # Date of each match
 param matches_per_venue{VENUES};  # Maximum number of matches per venue
 param team1{MATCHES} symbolic;  # First team in each match
 param team2{MATCHES} symbolic;  # Second team in each match
-param seeded_match_venue{SEEDED_MATCHES} symbolic;  # Venue for seeded matches
-param seeded_match_date{SEEDED_MATCHES};  # Date for seeded matches
 param venue_schedule{VENUES, DATES};
 param germany_matches{MATCHES, VENUES};
-var MaxTravel;  # Maximum travel distance among all teams
-var MinTravel;  # Minimum travel distance among all teams
-
 
 # Variables
 var x{MATCHES, VENUES} binary;  # If match m is played in venue v
 var y{TEAMS, MATCHES, MATCHES, VENUES, VENUES} binary;  # Binary variable to link two matches for travel distance
 var travel{TEAMS} >= 0;  # Total travel distance for each team
+# Declare variables
+# Declare variables
+var total_travel >= 0;
+var max_travel >= 0;
+var min_travel >= 0;
+var slack_total_travel >= 0;
+var slack_max_min_diff >= 0;
 
-param alpha := 0.5;  # Weight for total distance
-param beta := 0.5;   # Weight for fairness (can adjust these weights as needed)
-minimize CombinedObjective:
-    alpha * sum{t in TEAMS} travel[t] + beta * (MaxTravel - MinTravel);
+# Objective: Minimize slack variables for both objectives
+minimize WeightedObjective:
+    slack_total_travel + slack_max_min_diff;
+
+# Constraints for Total Travel
+subject to TotalTravelUpper:
+    total_travel <= 9000 + slack_total_travel;
+
+subject to TotalTravelLower:
+    total_travel >= 9000 - slack_total_travel;
+
+# Constraints for Max-Min Difference
+subject to MaxMinDiffUpper:
+    max_travel - min_travel <= 450 + slack_max_min_diff;
+
+subject to MaxMinDiffLower:
+    max_travel - min_travel >= 450 - slack_max_min_diff;
+
+# Calculate total travel
+subject to TotalTravelConstraint:
+    total_travel = sum{t in TEAMS} travel[t];
+
+# Constraints for max and min travel distances
+subject to MaxTravelConstraint {t in TEAMS}:
+    max_travel >= travel[t];
+
+subject to MinTravelConstraint {t in TEAMS}:
+    min_travel <= travel[t];
+
+# Additional constraints and logic for calculating travel[t] remain unchanged
 
 # Each match is assigned to exactly one venue
 subject to MatchAssignment {m in MATCHES}:
@@ -86,15 +113,109 @@ subject to TravelDistance {t in TEAMS}:
     travel[t] = sum{m1 in MATCHES, m2 in MATCHES, v1 in VENUES, v2 in VENUES:
         (team1[m1] = t or team2[m1] = t) and 
         (team1[m2] = t or team2[m2] = t) and 
-        match_date[m1] < match_date[m2] and 
-        forall {m3 in MATCHES: match_date[m1] < match_date[m3] < match_date[m2]}
-            ((team1[m3] != t) and (team2[m3] != t))}
+        match_date[m1] < match_date[m2]}
     distance[v1,v2] * y[t,m1,m2,v1,v2];
-    
-# Constraints for max and min travel distances
-subject to MaxTravelConstraint {t in TEAMS}:
-    MaxTravel >= travel[t];
 
-subject to MinTravelConstraint {t in TEAMS}:
-    MinTravel <= travel[t];
-    
+
+set TEAMS := GER SCO HUN SUI ESP CRO ITA ALB SVN DEN SRB ENG POL NED AUT FRA BEL SVK ROU UKR TUR GEO POR CZE;
+
+set VENUES := BER MUN DOR STU GEL HAM DUS FRK COL LEI;
+
+set DATES := 14 15 16 17 18 19 20 21 22 23 24 25 26;
+
+set GROUPS := 1 2 3 4 5 6;
+
+set MATCHES := 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36;
+
+param germany_matches default 0 :=
+[1,MUN] 1
+[14,STU] 1
+[27,FRK] 1;
+
+param group :=
+GER 1  SCO 1  HUN 1  SUI 1
+ESP 2  CRO 2  ITA 2  ALB 2
+SVN 3  DEN 3  SRB 3  ENG 3
+POL 4  NED 4  AUT 4  FRA 4
+BEL 5  SVK 5  ROU 5  UKR 5
+TUR 6  GEO 6  POR 6  CZE 6;
+
+param: MATCHES: team1 team2 :=
+1  GER SCO    2  HUN SUI    3  ESP CRO    4  ITA ALB
+5  SRB ENG    6  SVN DEN    7  POL NED    8  AUT FRA
+9  BEL SVK   10  ROU UKR   11  TUR GEO   12  POR CZE
+13 SCO SUI   14 GER HUN   15 CRO ALB   16 ESP ITA
+17 DEN ENG   18 SVN SRB   19 POL AUT   20 NED FRA
+21 SVK UKR   22 BEL ROU   23 TUR POR   24 GEO CZE
+25 SUI GER   26 SCO HUN   27 ALB ESP   28 CRO ITA
+29 ENG SVN   30 DEN SRB   31 NED AUT   32 FRA POL
+33 SVK ROU   34 UKR BEL   35 GEO POR   36 CZE TUR;
+
+param distance :   BER   MUN   DOR   STU   GEL   HAM   DUS   FRK   COL   LEI :=
+BER                  0   571   501   628   510   290   564   545   571   180
+MUN                570     0   632   220   664   790   654   421   613   412
+DOR                491   638     0   452    34   353    68   271    99   420
+STU                628   222   449     0   454   676   421   202   380   470
+GEL                510   669    41   455     0   348    59   273   101   451
+HAM                290   790   351   676   347     0   401   506   425   399
+DUS                565   653    73   421    60   403     0   239    61   481
+FRK                549   420   267   202   272   508   238     0   198   391
+COL                570   610    96   378   102   425    60   196     0   492
+LEI                179   414   427   471   490   399   544   389   502     0;
+
+param matches_per_venue :=
+BER 3  LEI 3  HAM 4  DOR 4  GEL 3  DUS 3  COL 4  FRK 4  STU 4  MUN 4;
+
+param match_date :=
+1  14   2  15   3  15   4  15   5  16   6  16   7  16   8  17   9  17  10  17
+11 18  12  18  13  19  14  19  15  19  16  20  17  20  18  20  19  21  20  21
+21 21  22  22  23  22  24  22  25  23  26  23  27  24  28  24  29  25  30  25
+31 25  32  25  33  26  34  26  35  26  36  26;
+
+param venue_schedule :=
+[BER,*] 14 0  15 1  16 0  17 0  18 0  19 0  20 1  21 0  22 0  23 0  24 0  25 1  26 0
+[MUN,*] 14 1  15 0  16 0  17 1  18 0  19 0  20 0  21 1  22 0  23 0  24 0  25 0  26 1
+[DOR,*] 14 0  15 1  16 0  17 0  18 1  19 0  20 0  21 0  22 1  23 0  24 0  25 1  26 0
+[STU,*] 14 0  15 0  16 1  17 0  18 0  19 1  20 0  21 0  22 0  23 1  24 0  25 1  26 0
+[GEL,*] 14 0  15 0  16 1  17 0  18 0  19 0  20 1  21 0  22 0  23 0  24 0  25 0  26 1
+[HAM,*] 14 0  15 0  16 1  17 0  18 0  19 1  20 0  21 0  22 1  23 0  24 0  25 0  26 1
+[DUS,*] 14 0  15 0  16 0  17 1  18 0  19 0  20 1  21 0  22 0  23 0  24 1  25 0  26 0
+[FRK,*] 14 0  15 0  16 0  17 1  18 0  19 0  20 0  21 1  22 0  23 1  24 0  25 0  26 1
+[COL,*] 14 0  15 1  16 0  17 0  18 1  19 0  20 0  21 0  22 1  23 0  24 1  25 0  26 0
+[LEI,*] 14 0  15 0  16 0  17 0  18 1  19 0  20 0  21 1  22 0  23 0  24 1  25 0  26 0;
+
+
+
+reset;
+model EURO2024.mod;
+data EURO2024.dat;
+option solver gurobi;
+option gurobi_options 'outlev=1';
+option show_stats 1;
+
+solve;
+
+display(WeightedObjective);
+
+# Print match schedule
+printf "Match schedule:\n";
+for {m in MATCHES} {
+    for {v in VENUES} {
+        if x[m,v].val > 0.5 then
+            printf "Match %d: %s vs %s on day %d in %s\n", m, team1[m], team2[m], match_date[m], v;
+    }
+}
+
+
+# Print total travel distance for each team
+printf "\nTotal distance travelled by each team:\n";
+for {t in TEAMS} {
+    printf "%s travelled: %f km\n", t, travel[t];
+}
+
+
+
+
+
+
+
