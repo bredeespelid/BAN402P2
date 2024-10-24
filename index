@@ -1,0 +1,18 @@
+	# Hvileperiodebegrensning
+	subject to VenueRest {v in VENUES, m1 in MATCHES, m2 in MATCHES: 
+    m1 != m2 and abs(date_index[match_date[m1]] - date_index[match_date[m2]]) < 3}:
+    x[m1, v] + x[m2, v] <= 1;
+param date_index :=
+14 1
+15 2
+16 3
+17 4
+18 5
+19 6
+20 7
+21 8
+22 9
+23 10
+24 11
+25 12
+26 13;
