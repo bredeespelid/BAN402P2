@@ -1,0 +1,352 @@
+Make a ampl code (mod, dat and run file based on assignment and skeleton code). But dont make it as the skeleton code*
+
+Assignment:
+
+"
+\section*{Part C (40\%)}
+
+The company BanPetrolytics buys several types of crude oils daily at its two refineries (R1 and R2). The cost of purchasing one unit of crude oil $i$ on day $t$ is $CCRU_{i,t}$. The crude oil is converted into components through a series of processes in the refineries. A crude oil that goes through these processes provides different components, and the proportions in which these components are obtained vary from one refinery to another, due to the different technologies and conditions under which the conversion occurs. We will refer to $a_{r,i,b}$ as the amount of component $b$ obtained from processing one unit of crude oil $i$ at refinery $r$. The maximum processing capacity of crude oil per day at the refineries is 850 units at R1 and 810 units at R2.
+
+The cost of processing one unit of crude oil $i$ at refinery $r$ is $CDIS_{r,i}$. The crude oil is ready for processing on the same day it is purchased or, alternatively, it can be stored at the corresponding refinery. The cost of storing one unit of any type of crude oil is $CINV^I$ per day. However, it is not possible to store components at the refineries. Therefore, all the components obtained from processing the crude oils are sent to another facility of the company, which we will refer to as the hub. Assume that the components sent from the refineries on day $t$ are received at the hub on day $t+1$, due to some lead time of transportation and handling. The cost of transporting one unit of any component from a refinery to the hub is $CTRA1$.
+
+Once the components arrive at the hub, they are ready to be mixed to generate final products. The mix occurs according to predefined recipes. The recipe for producing one unit of product $p$ needs $Q_{b,p}$ units of component $b$. The cost of producing one unit of product $p$ is $CPRO_p$. It is possible to store components in the hub at a daily cost of $CINV^B$ per unit. In contrast, the final products cannot be stored at the hub and, instead, are sent to depots. The cost of transporting one unit of any product from the hub to depot $d$ is $CTRA2_d$. Assume that what is produced during one day arrives at the depots at the beginning of the following day.
+
+Once the products arrive at the depots, they are ready to be shipped to the markets. The cost of shipping one unit of any product from depot $d$ to market $k$ is $CTRA3_{d,k}$. Alternatively, the products may be stored at the depots. The cost of storing one unit of any type of product at depot $d$ is $CINV^P_d$ per day.
+
+There is a maximum demand limit for product $p$ in market $k$ on day $t$, which we will denote by $\delta_{p,k,t}$. The price of one unit of product $p$ in all markets is $S_p$. Assume that it is possible to fulfill the demand of a single market by supplying from different depots. Also, assume that what is shipped from the depots on one day arrives in the markets the following day, except for two markets in the extreme south and two markets in the extreme north, which take an extra day. These markets are labeled as ES1, ES2, EN1, and EN2. The shipments to these extreme markets incur a fixed cost. If a positive quantity of products (in total) is sent from depot $d$ to extreme market $k$ on a given day, the fixed cost incurred is equal to $CExtreme_d$. Note that there may be shipments from more than one depot and to more than one extreme market, and the fixed cost must be paid for each used link. Due to a commitment with local authorities, you must ensure that there is at least one day during the planning horizon with shipment to each extreme market. Also, due to a policy within the company, there cannot be shipments to both the extreme south and the extreme north on the same day.
+
+Figure 2 illustrates the different stages of the supply chain of BanPetrolytics. The file \texttt{dataC.dat} contains data for this problem. You may modify it according to your own formulation. Note that the set $T$ contains 11 days, including from day 0 to day 10. Day 0 is only relevant for initial conditions (you may eventually delete it from the set $T$ in the data file if your code does not need it). Note that demand on day 10 is satisfied by shipping on day 9 (or day 8 in the case of the extreme markets). It is not possible to make a profit from shipping products that would arrive at their destination after day 10.
+
+"
+Skeleton code:
+"
+set R; #refineries
+set I; #crude oils
+set B; #components
+set P; #final products
+
+set D; #depots
+set K; #markets
+set E within K; #extrem markets 
+set NO within E; #extrem market in north
+set SO within E; #extrem market in south 
+set T; #time periods
+
+
+#Parameters
+param Ccru {I, T}; 			#cost of one unit of crude oil
+param a {R, I, B}; 			#amount of component b obtained from one unit of crude  oil i refined at refinery r
+param Q {B, P}; 			#amount of component b needed in recipe for one unit of product p
+param S {P}; 				#Sales price of product p 
+param Cdis {R, I}; 			#cost of processing one unit of crude oil i in refinery r
+param Cpro {P}; 			#cost of producing one unit of product p at the hub
+param Ctra1;				#cost of transporting one unit of any component from a refinery to the hub
+param Ctra2 {D}; 			#cost of transporting one unit of any product from the hub to depot d
+param Ctra3 {D, K}; 		#cost of transporting one unit of any product from depot d to market k
+param CExtreme {D}; 		#fixed cost per period for shipping to extrem North and extrem South
+param Cinvi; 				#daily cost of storing one unit of crude oil
+param Cinvb; 				#daily cost of storing one unit of component
+param Cinvp {D}; 			#daily cost of storing one unit of any product p at depot d
+param delta {P, K, T}; 		#maximum demand limit for product p in market k in period t
+
+param IfinalCo {B};			#final inventory of component b
+param Izero {P, D}; 		#initial inventory of product p at depot d
+param Ifinal {P, D}; 		#final inventory of product p at depot d
+param MaxCap{R}; 			#maximum processing capacity at refinery r of crude oil per day 
+
+
+#Decision variabels
+var u{I, T} >= 0; 				#Amount of crude oil i purchased on day t 
+var z{I, R, T} >= 0; 			#Amount of crude oil i at refinery r on day t 
+var y{B, T} >= 0; 				#Amount of component b sent to the hub on day t (for refinery in t+1) 
+var w{P, T} >= 0; 				#Amount of product p produced at the hub on day t
+var x{P, D, T} >= 0; 			#Amount of product p sent from the hub to depot d on day t (available at depot in t+1)
+var v{P, D, K, T} >= 0; 		#Amount of product p sent from depot d to market k on day t
+var IO {I, R, T} >= 0 ; 		#inventory of crude oil i at the refinery r at the end of day t
+var IC {B, T} >= 0; 			#inventory of component b in the hub at the end of day t 
+var IP {P, D, T} >= 0; 			#inventory of product p at depot d at the end of day t
+
+var binN{T} binary; 			#1 if shipped to extrem market North
+var binS{T} binary;  			#1 if ekstrem market k in south get delivery on day t
+
+#Objective function
+maximize Profit: 
+	 sum {p in P, d in D, k in K diff E, t in T:t>0 and t <= card(T)-2} (S[p] * v[p,d,k,t])					#sales income in markets 
+	+sum {p in P, d in D, k in E, t in T:t>0 and t <= card(T)-3} (S[p] * v[p,d,k,t])						#sales income in extrem markets
+	-sum{i in I, t in T:t>0} (Ccru[i, t] * u[i,t])															#cost of crude oil
+	-sum{r in R, i in I, t in T:t>0} (Cdis[r, i] * z[i, r, t])													#cost of refining crude oil
+	-sum{p in P, t in T:t>0} (Cpro[p] * w[p, t])															#production cost of products	
+	-sum{b in B, t in T:t>0} (Ctra1 * y[b, t])																#transportation cost from refinery to hub
+	-sum{p in P, d in D, t in T:t>0} (Ctra2[d] * x[p,d,t])													#transportation cost from hub to depot
+	-sum{p in P, d in D, k in K, t in T:t>0} (Ctra3[d, k] * v[p, d, k, t])									#tranportation cost from depots to market
+	-sum{i in I, r in R, t in T:t>0} (Cinvi * IO[i,r,t])													#inventory cost at refinerary
+	-sum{b in B, t in T:t>0} (Cinvb * IC[b, t])																#inventory cost at the hub
+	-sum{p in P, d in D, t in T:t>0} (Cinvp[d] * IP[p, d, t])												#inventory cost at the depots
+	-sum{d in D, t in T:t>0} (CExtreme[d] * (binN[t] + binS[t]))											#Cost for shipping to extrem market 
+;
+
+
+
+#Constraints
+
+subject to
+#1. Balance of crude oils at the refineries: inflow purchase, stored, outflow to the hub
+BalanceCcru{i in I, r in R, t in T:t>0}:
+	IO[i, r, t] = IO[i, r, t-1] + u[i, t] - sum {b in B} z[i, r, t] * a[r,i,b];
+
+#2. Max processing capcity of total crude oil that can be processed at each refinery per day
+CapConstraint{r in R, t in T:t>0}:	
+	sum{i in I}z[i, r, t] <= MaxCap[r];
+	
+#3. All components form refinery is sent to the hub
+RefToHub {b in B, t in T:t>0}:
+	y[b, t] = sum {r in R, i in I} z[i, r, t] * a[r, i, b];
+        
+#4. Balance of components at the hub: inflow from the refineries, stored, outflow to the depots
+BalanceComp{b in B, t in T:t>0}:
+	IC[b, t] = IC[b, t-1] + y[b, t] - sum {p in P} w[p, t] * Q[b,p];
+	
+	
+#5. Quantity of each component sent to the hub is sufficiently to meet to the recipe requirements for production 
+RecipeReq {b in B, t in T:t>0}: 
+	y[b,t-1] >= sum {p in P} Q[b, p] * w[p, t];
+
+#6. All products from the hub is sent to the depots (There is no storage for products at the hub)
+ProdToDepot {p in P, t in T:t>0}: 
+	w[p, t] = sum {d in D} x[p, d, t];
+
+#7. Balance of products at depots: inflow from the hub, stored, shipped to markets 
+BalanceProd {p in P, d in D, t in T:t>0}: 
+	IP[p, d, t] = IP[p, d, t-1] + x[p,d,t-1] - sum{k in K} v[p, d, k, t];
+
+#8. Quantity of each product shipped to each normal market cannot be more than the demand 
+#for the corresponding produkt from the corresponding normal market
+DemandM {p in P, k in K diff E, t in T:t>0}:
+	sum {d in D} v[p, d, k, t-1] <= delta[p, k, t];
+
+#9. Quantity of each product shipped to each extrem market cannot be more than the demand 
+#for the corresponding produkt from the corresponding extreme market
+DemandMEX {p in P, k in E, t in T:t > 1}:
+    sum {d in D} v[p, d, k, t-2] <= delta[p, k, t];
+
+
+#10. Make sure there is at least one day over the planning horizon with shipment to extreme market North 
+Logic1 {t in T: t > 0}:
+	100000 * binN[t] >= sum{k in NO, p in P, d in D} v[p, d, k, t];
+
+#11. Make sure there is at least one day over the planning horizon with shipment to extreme market South  
+Logic2 {t in T: t > 0}:
+	10000 * binS[t] >=  sum{k in SO, p in P, d in D} v[p, d, k, t];
+
+#12. Make sure that it is not possible to ship to both extreme markets on the same day 
+Logic3 {k in E, t in T: t >0}:
+	binN[t] + binS[t] <= 1;
+
+
+#13. initial inventory values
+InitIO {i in I, r in R}: IO[i, r, 0] = 0; 				#Initial inventory of crude oil at the refineries
+InitIC {b in B}: IC[b, 0] = 0; 							#Initial inventory of components at the hub
+InitIP {p in P, d in D}: IP[p, d, 0] = Izero[p, d];		#Initial inventory of products at the depots
+
+#13. initial flow values 
+InitY {b in B}: y[b, 0] = 0; 								#Initial flow of component b to the Hub
+InitX {p in P, d in D}: x[p, d, 0] = 0; 					#Initial flow of product p to the depots
+InitV {p in P, d in D, k in K}: v[p, d, k, 0] = 0; 			#Initial flow of product p b to the markets
+
+#14. Final values 
+FinalIC {b in B}: IC[b, 10] >= IfinalCo[b]; 					#Final inventory of components at the hub
+FinalIP {p in P, d in D}: IP[p, d, 10] = Ifinal[p, d];		#Final inventory of products at the depots
+	
+"
+
+Data:
+
+"
+set R := R1,R2; #refineries 
+set I := CrA, CrB; # crude oils
+set B := distilA, distilB, ISO, POL; #components
+set P := premium, regular, distilF, super; #final products
+
+set D := D1, D2; 	#depots
+
+set K := K1, K2, K3, K4, K5, K6, K7, K8, K9, EN1, EN2, ES1, ES2; #markets
+set E := EN1, EN2, ES1, ES2; #extreme market
+set NO := EN1, EN2; #in north
+set SO := ES1, ES2; #in south 
+
+set T := 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10; #time periods
+
+param Ccru  # cost of one unit of crude oil
+	:1   2   3   4   5   6   7   8   9   10:=
+CrA     77 77 77 77 77 77 77 77 77 77
+CrB 	75 75 75 75 75 75 75 75 75 75  
+;
+
+param a := # amount of component b obtained from one unit of crude  oil i refined at refinery r
+R1 CrA distilA 	0.15	
+R1 CrA distilB 	0.25	
+R1 CrA ISO	0.2	
+R1 CrA POL	0.4	
+R1 CrB distilA 	0.24	
+R1 CrB distilB 	0.16	
+R1 CrB ISO	0.4	
+R1 CrB POL	0.2	
+R2 CrA distilA  0.1
+R2 CrA distilB  0.3
+R2 CrA ISO 	0.18
+R2 CrA POL 	0.42 
+R2 CrB distilA 	0.22
+R2 CrB distilB 	0.18
+R2 CrB ISO 	0.37
+R2 CrB POL 	0.23
+; 
+
+param Q : premium regular distilF super := # amount of component b needed in recipe for one unit of product p
+distilA 	0	0.2	0.4	0
+distilB 	0.1	0	0.6	0
+ISO			0.4	0.5	0	0.4
+POL 		0.5	0.3	0	0.6
+;
+	     
+param S := # sales price of product p
+premium 576
+regular 525
+distilF 500
+super   550
+;
+ 
+param Cdis := #cost of processing one unit of crude oil i in refinery r
+R1 CrA 	74 	
+R1 CrB 	75	
+R2 CrA 	76 	
+R2 CrB 	77	
+;
+
+param Cpro := #cost of producing one unit of product p at the hub
+premium 35
+regular 30
+distilF 25
+super   30
+;
+
+param Ctra1 := 5; #cost of transporting one unit of any component from a refinery to the hub
+
+param Ctra2 := #cost of transporting one unit of any product from the hub to depot d
+D1 10
+D2 12
+;
+
+param Ctra3 : #cost of transporting one unit of any product from depot d to market k
+	K1  K2  K3  K4  K5  K6  K7  K8	K9  EN1 EN2 ES1 ES2:= 
+D1	10  12  14  17  20  20  24  26	28   45	    47	   44	    47
+D2	22  20  23  18  16  13  10  11	10   50	    48	   42	    49
+;
+
+param CExtreme :=#fixed cost per period for shipping to extreme North and extreme South
+D1		1500
+D2  	1750
+;
+
+param Cinvi := 2; #daily cost of storing one unit of crude oil
+param Cinvb := 4; #daily cost of storing one unit of component
+param Cinvp := #daily cost of storing one unit of any product p at depot d 
+D1 3
+D2 3
+; 
+
+param delta := #maximum demand limit for product p in market k in period t
+[premium,*,*]:	0	1	2	3	4	5	6	7	8	9	10	:=
+ K1				0	0	50	50	50	80	80	87	79	69	60	
+ K2				0	0	0	0	0	0	0	8	1	0	0	
+ K3				0	0	0	0	0	0	0	10	1	0	0	
+ K4				0	0	80	80	80	120	120	130	123	116	106	
+ K5				0	0	20	20	40	40	40	47	38	33	23	
+ K6				0	0	0	0	0	0	0	5	0	0	0	
+ K7				0	0	50	50	50	60	60	67	60	52	46	
+ K8				0	0	10	10	10	20	20	30	25	19	14	
+ K9				0	0	15	15	15	20	20	28	18	11	5	
+ EN1			0	0	0	5	5	7	7	16	11	1	0	
+ EN2			0	0	0	6	8	9	9	12	10	2	0	
+ ES1			0	0	0	4	5	7	7	11	5	1	0	
+ ES2			0	0	0	6	4	9	9	9	6	2	0	
+
+ 
+[regular,*,*]:	0	1	2	3	4	5	6	7	8	9	10	:=
+ K1				0	0	25	35	35	45	45	53	44	37	29	
+ K2				0	0	80	80	80	80	80	85	78	71	62	
+ K3				0	0	30	60	60	80	80	89	84	76	68	
+ K4				0	0	50	50	50	50	50	58	49	39	32	
+ K5				0	0	100	100	120	120	120	125	115	105	98	
+ K6				0	0	60	60	85	85	85	91	82	72	63	
+ K7				0	0	30	30	40	50	60	67	58	48	41	
+ K8				0	0	40	40	40	40	40	47	39	30	22	
+ K9				0	0	40	40	40	50	40	48	40	30	25	
+ EN1			0	0	0	5	6	6	6	13	3	0	0	
+ EN2			0	0	0	4	6	6	6	10	10	0	0	
+ ES1			0	0	0	5	6	6	6	6	3	0	0	
+ ES2			0	0	0	6	6	6	6	8	8	0	0	
+ 
+[distilF,*,*]:	0	1	2	3	4	5	6	7	8	9	10	:=
+ K1				0	0	15	15	15	15	15	20	10	5	0	
+ K2				0	0	10	10	10	10	10	16	8	3	0	
+ K3				0	0	20	20	20	20	20	30	20	15	8	
+ K4				0	0	22	22	22	22	22	32	25	15	10	
+ K5				0	0	10	10	10	10	10	16	7	0	0	
+ K6				0	0	0	0	0	0	0	7	0	0	0	
+ K7				0	0	0	0	0	0	0	5	0	0	0	
+ K8				0	0	0	0	0	0	0	9	1	0	0	
+ K9				0	0	20	20	20	25	25	31	26	17	8	
+ EN1			0	0	0	3	3	5	5	11	1	0	0	
+ EN2			0	0	0	3	3	5	5	11	1	0	0			
+ ES1			0	0	0	3	3	5	5	11	1	0	0	
+ ES2			0	0	0	3	3	5	5	11	1	0	0	
+													
+[super,*,*]:	0	1	2	3	4	5	6	7	8	9	10	:=
+ K1				0	0	25	20	10	10	10	16	8	3	0	
+ K2				0	0	0	0	0	0	0	9	0	0	0	
+ K3				0	0	15	15	15	15	15	24	18	8	3	
+ K4				0	0	15	15	15	15	15	24	16	8	0	
+ K5				0	0	10	10	10	10	10	15	10	3	0	
+ K6				0	0	40	40	40	40	40	46	38	28	20	
+ K7				0	0	0	0	0	0	0	8	2	0	0	
+ K8				0	0	15	15	30	30	30	35	26	19	11	
+ K9				0	0	10	10	10	12	15	22	16	8	2	
+ EN1			0	0	0	4	4	4	4	8	8	1	0	
+ EN2			0	0	0	5	5	5	5	12	8	2	0	
+ ES1			0	0	0	5	5	5	5	7	8	2	0	
+ ES2			0	0	0	5	5	5	5	14	8	1	0	
+;												
+
+param IfinalCo:= #final inventory of component b
+distilA		100
+distilB		100
+ISO			400
+POL			400
+;
+
+
+param Izero: #initial inventory of product p at depot d
+			D1		D2		:=
+premium		210		210
+regular		400		470
+distilF		54		100
+super		200		135
+;
+
+param Ifinal: #final inventory of product p at depot d
+			D1		D2		:=
+premium		125		100
+regular		200		250
+distilF		50		30
+super		30		60
+;
+
+
+param MaxCap:= #maximum processing capacity of crude oil per day 
+R1	850
+R2	810
+;
+
+
+
+"
