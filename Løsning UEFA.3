@@ -15,28 +15,24 @@ param team2{MATCHES} symbolic;  # Second team in each match
 param venue_schedule{VENUES, DATES};
 param germany_matches{MATCHES, VENUES};
 
-
 # Variables
 var x{MATCHES, VENUES} binary;  # If match m is played in venue v
 var y{TEAMS, MATCHES, MATCHES, VENUES, VENUES} binary;  # Binary variable to link two matches for travel distance
 var travel{TEAMS} >= 0;  # Total travel distance for each team
-# New Variable
-var max_diff >= 0;
 
-# Objective: Minimize total distance travelled by teams
-# Modified Objective: Minimize the maximum difference in travel distances
+# New Variable for Linearization
+var z >= 0;  # Auxiliary variable to represent the maximum difference in travel distances
+
+# Objective: Minimize the maximum difference in travel distances
 minimize MaxDifference:
-    max_diff;
-    
-# Constraints
+    z;
 
-# Constraints for Maximum Difference
+# Constraints for Maximum Difference (Linearized)
 subject to MaxDiffConstraint {t1 in TEAMS, t2 in TEAMS: t1 != t2}:
-    max_diff >= travel[t1] - travel[t2];
-    
-    
+    travel[t1] - travel[t2] <= z;
+
 subject to MaxDiffConstraintAbs {t1 in TEAMS, t2 in TEAMS: t1 != t2}:
-    max_diff >= travel[t2] - travel[t1];
+    travel[t2] - travel[t1] <= z;
 
 # Each match is assigned to exactly one venue
 subject to MatchAssignment {m in MATCHES}:
@@ -93,11 +89,8 @@ subject to TravelDistance {t in TEAMS}:
     travel[t] = sum{m1 in MATCHES, m2 in MATCHES, v1 in VENUES, v2 in VENUES:
         (team1[m1] = t or team2[m1] = t) and 
         (team1[m2] = t or team2[m2] = t) and 
-        match_date[m1] < match_date[m2] and 
-        forall {m3 in MATCHES: match_date[m1] < match_date[m3] < match_date[m2]}
-            ((team1[m3] != t) and (team2[m3] != t))}
+        match_date[m1] < match_date[m2]}
     distance[v1,v2] * y[t,m1,m2,v1,v2];
-
 
     set TEAMS := GER SCO HUN SUI ESP CRO ITA ALB SVN DEN SRB ENG POL NED AUT FRA BEL SVK ROU UKR TUR GEO POR CZE;
 
@@ -167,7 +160,6 @@ param venue_schedule :=
 [LEI,*] 14 0  15 0  16 0  17 0  18 1  19 0  20 0  21 1  22 0  23 0  24 1  25 0  26 0;
 
 
-
 reset;
 model EURO2024.mod;
 data EURO2024.dat;
@@ -194,3 +186,11 @@ printf "\nTotal distance travelled by each team:\n";
 for {t in TEAMS} {
     printf "%s travelled: %f km\n", t, travel[t];
 }
+
+
+
+
+
+
+
+
